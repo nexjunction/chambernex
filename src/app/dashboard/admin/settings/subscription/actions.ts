@@ -1,4 +1,4 @@
-// src/app/dashboard/admin/subscriptions/actions.ts
+// src/app/dashboard/admin/settings/subscription/actions.ts
 'use server';
 
 import { prisma } from '@/lib/prisma';
@@ -17,7 +17,6 @@ async function verifySuperAdmin() {
   allCookies.forEach(c => console.log(`   - Name: "${c.name}" | Value snippet: "${c.value.substring(0, 15)}..."`));
   console.log('========================================');
 
-  // Check all potential cookie names your login system might be using
   const possibleEmail =
     cookieStore.get('userEmail')?.value ||
     cookieStore.get('email')?.value ||
@@ -28,14 +27,8 @@ async function verifySuperAdmin() {
   if (possibleEmail) {
     console.log('📧 Found direct email in cookie:', possibleEmail);
     user = await prisma.user.findUnique({ where: { email: possibleEmail } });
-  } else {
-    // If auth uses a token/session cookie instead of storing raw email,
-    // fallback or check standard user lookup if you store sessions in DB.
-    console.log('⚠️ No direct email cookie found under userEmail/email/admin_email.');
   }
 
-  // Fallback: If no user found via cookie, check if there's any user with ADMIN role in DB
-  // during development/debugging to prevent getting locked out completely.
   if (!user) {
     console.log('🔄 Checking database for fallback Admin or Super Admin account...');
     user = await prisma.user.findFirst({
@@ -190,4 +183,80 @@ export async function updateParticularUserAction(
   });
 
   return { success: true };
+}
+
+// Approve a user's transaction/subscription payment
+export async function approveTransactionAction(transactionId: string) {
+  await verifySuperAdmin();
+
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+  });
+
+  if (!transaction) {
+    throw new Error('Transaction not found');
+  }
+
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: { status: 'SUCCESS' },
+  });
+
+  if (transaction.userId) {
+    const subEndsAt = new Date();
+    subEndsAt.setMonth(subEndsAt.getMonth() + 1);
+
+    await prisma.user.update({
+      where: { id: transaction.userId },
+      data: {
+        subStatus: 'ACTIVE',
+        subEndsAt,
+      },
+    });
+  }
+
+  return { success: true };
+}
+
+// Reject a user's transaction/subscription payment
+export async function rejectTransactionAction(transactionId: string) {
+  await verifySuperAdmin();
+
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: { status: 'FAILED' },
+  });
+
+  return { success: true };
+}
+
+// Wrapper/Alias matching updateUserCustomPriceAction requested by page.tsx
+export async function updateUserCustomPriceAction(
+  userId: string,
+  subStatus: 'TRIAL' | 'ACTIVE' | 'EXPIRED',
+  planType: 'MONTHLY' | 'HALF_YEARLY' | 'ANNUAL' | 'LIFETIME' | 'CUSTOM',
+  isLifetimeFree: boolean,
+  trialDaysOverride: number | null,
+  customMonthlyPrice: number | null,
+  customHalfYearlyPrice: number | null,
+  customAnnualPrice: number | null,
+  customLifetimePrice: number | null,
+  userSpecificOfferTitle: string | null,
+  userSpecificDiscountPct: number | null,
+  monthsToAdd?: number
+) {
+  return updateParticularUserAction(
+    userId,
+    subStatus,
+    planType,
+    isLifetimeFree,
+    trialDaysOverride,
+    customMonthlyPrice,
+    customHalfYearlyPrice,
+    customAnnualPrice,
+    customLifetimePrice,
+    userSpecificOfferTitle,
+    userSpecificDiscountPct,
+    monthsToAdd
+  );
 }
