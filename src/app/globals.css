@@ -24,3 +24,27 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Print Isolation Rules for Tailwind v4 */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #printable-prescription,
+  #printable-prescription * {
+    visibility: visible;
+  }
+
+  #printable-prescription {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0 !important;
+    padding: 1rem !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+}

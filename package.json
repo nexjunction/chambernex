@@ -1,25 +1,49 @@
 {
   "name": "chamber",
+  "type": "module",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma skills sync || exit 0",
+    "contract:emit": "prisma contract emit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1126.0",
+    "@aws-sdk/s3-request-presigner": "^3.1126.0",
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "@prisma/orm-postgres": "^8.0.0-rc.8",
+    "@supabase/supabase-js": "^2.115.0",
+    "@types/react-google-recaptcha": "^2.1.9",
+    "bcrypt": "^6.0.0",
+    "dotenv": "^17.4.2",
     "next": "16.3.3",
+    "nodemailer": "^10.0.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-google-recaptcha": "^3.1.0",
+    "resend": "^6.28.1",
+    "sslcommerz-lts": "^1.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@prisma/cli": "^8.0.0-rc.12",
+    "@prisma/cli-engine": "^0.2.3",
+    "@prisma/client": "^6.19.3",
     "@tailwindcss/postcss": "^4",
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

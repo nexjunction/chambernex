@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  position     String
+  password     String?  // Staff account passwords
+  degrees      String?
+  phone        String?  @unique
+  avatarUrl    String?
+  role         String   // "ADMIN", "DOCTOR", "RECEPTIONIST"
+
+  // --- SUBSCRIPTION & TRIAL FIELDS ---
+  subStatus               String   @default("TRIAL") // "TRIAL", "ACTIVE", "EXPIRED"
+  planType                String?                      // "MONTHLY", "HALF_YEARLY", "ANNUAL", "LIFETIME", "CUSTOM"
+  trialEndsAt             DateTime?                    // Free trial expiration date
+  subEndsAt               DateTime?                    // Paid subscription expiration date
+
+  // 4 Distinct Custom Price Overrides (Replaced single customPrice)
+  customMonthlyPrice      Float?
+  customHalfYearlyPrice   Float?
+  customAnnualPrice       Float?
+  customLifetimePrice     Float?
+
+  userSpecificOfferTitle  String?                      // Per-user offer title
+  userSpecificDiscountPct Float?                       // Per-user discount percentage
+
+  // --- OTP & Verification Fields ---
+  isEmailVerified         Boolean  @default(false)
+  isPhoneVerified         Boolean  @default(false)
+  otpCode                 String?
+  otpExpiresAt            DateTime?
+
+  // --- NEW: Pending Contact Update Fields ---
+  pendingEmail            String?
+  pendingPhone            String?
+
+  // Relations
+  transactions Transaction[]                // Payment history ledger
+
+  visits       Visit[]
+
+  // Mutual connection relations
+  doctorConnections       StaffConnection[] @relation("DoctorConnections")
+  receptionistConnections StaffConnection[] @relation("ReceptionistConnections")
+
+  // Assigned admin boundary connection relations
+  adminConnections        AdminStaffConnection[] @relation("AdminConnections")
+  targetConnections       AdminStaffConnection[] @relation("TargetConnections")
+
+  // --- NEW: Doctor Chamber Expenses Ledger ---
+  chamberRents            ChamberRent[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// --- CHAMBER RENT & EXPENSES MODEL ---
+model ChamberRent {
+  id               String   @id @default(cuid())
+  doctorId         String
+  doctor           User     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  month            String   // Format: "YYYY-MM" (e.g., "2026-09")
+  rentAmount       Float    @default(0)
+  utilitiesAmount  Float    @default(0)
+  staffSalaryShare Float    @default(0)
+  totalAmount      Float    @default(0)
+  notes            String?
+  isPaid           Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([doctorId, month])
+}
+
+// --- TRANSACTION LEDGER MODEL ---
+model Transaction {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount        Float    // Amount paid in BDT
+  planType      String   // "MONTHLY", "HALF_YEARLY", "ANNUALLY", "LIFETIME"
+  discountPct   Float    @default(0) // Promotional discount applied
+
+  paymentMethod String   @default("BKASH") // "BKASH", "NAGAD", "MOBILE_TRANSFER", "MANUAL_BANK", "CARD"
+  trxId         String?  @unique           // Ensures no duplicate TrxIDs can be submitted
+  status        String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED", "COMPLETED", "FAILED"
+
+  startDate     DateTime
+  endDate       DateTime? // Null for lifetime
+
+  createdAt     DateTime @default(now())
+}
+
+model StaffConnection {
+  id             String   @id @default(cuid())
+  doctorId       String
+  doctor         User     @relation("DoctorConnections", fields: [doctorId], references: [id], onDelete: Cascade)
+
+  receptionistId String
+  receptionist   User     @relation("ReceptionistConnections", fields: [receptionistId], references: [id], onDelete: Cascade)
+
+  status         String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  initiatedBy    String   // "DOCTOR" or "RECEPTIONIST"
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([doctorId, receptionistId])
+}
+
+model AdminStaffConnection {
+  id          String   @id @default(cuid())
+  adminId     String
+  admin       User     @relation("AdminConnections", fields: [adminId], references: [id], onDelete: Cascade)
+
+  targetId    String   @unique // Globally enforces that a staff member can only connect with ONE admin total
+  target      User     @relation("TargetConnections", fields: [targetId], references: [id], onDelete: Cascade)
+
+  status      String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  initiatedBy String   // "ADMIN" or "STAFF"
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Patient {
+  id             String   @id @default(cuid())
+  customId       String?  @unique
+  name           String
+  phone          String   @unique
+  emergencyPhone String?
+  age            Int
+  gender         String
+  address        String?
+  visits         Visit[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Visit {
+  id              String        @id @default(cuid())
+  patientId       String
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  doctorId        String?
+  doctor          User?         @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  symptoms        String?
+  diagnosis       String?
+  bloodPressure   String?
+  weight          String?
+  height          String?
+  temperature     String?
+  pulse           String?
+  consultationFee Float         @default(0)
+  feePaid         Float         @default(0)
+  dues            Float         @default(0)
+
+  // Status flow: "SCHEDULED" -> "WAITING" -> "COMPLETED"
+  status          String        @default("SCHEDULED")
+
+  prescription    Prescription?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Prescription {
+  id          String   @id @default(cuid())
+  visitId     String   @unique
+  visit       Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  medicines   String
+  advice      String?
+  tests       String?
+  testReports String?  // Attached test reports/results later
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// --- PAYMENT SETTINGS MODEL FOR SSLCOMMERZ ---
+model PaymentSetting {
+  id            String   @id @default(cuid())
+  storeId       String
+  storePassword String
+  isLive        Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+}
+
+// --- GLOBAL PLATFORM SETTINGS MODEL FOR TRIALS & PRICING ---
+model PlatformSetting {
+  id               String   @id @default(cuid())
+  defaultTrialDays Int      @default(30)     // Default trial duration in days
+  monthlyPrice     Float    @default(500)    // Default monthly subscription price in BDT
+  halfYearlyPrice  Float    @default(2500)   // Default half-yearly subscription price in BDT
+  annualPrice      Float    @default(5000)   // Default annual subscription price in BDT
+  lifetimePrice    Float    @default(120000) // Default lifetime subscription price in BDT
+  offerTitle       String?                   // Promotional offer announcement title
+  offerDiscountPct Float    @default(0)      // Promotional discount percentage
+  updatedAt        DateTime @updatedAt
+}

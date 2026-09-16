@@ -1,0 +1,28 @@
+@media print {
+  /* Hide all app layouts, headers, modals, and screen containers */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Make only the prescription pad visible */
+  .printable-prescription,
+  .printable-prescription * {
+    visibility: visible;
+  }
+
+  /* Position printable template at top left corner */
+  .printable-prescription {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Configure A4 paper settings */
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+}
