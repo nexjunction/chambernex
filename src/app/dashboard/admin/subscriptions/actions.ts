@@ -1,4 +1,4 @@
-// src/app/dashboard/admin/subscriptions/actions.ts
+// src/app/dashboard/admin/settings/subscription/actions.ts
 'use server';
 
 import { prisma } from '@/lib/prisma';
@@ -186,8 +186,6 @@ export async function updateParticularUserAction(
 
   return { success: true };
 }
-
-// --- NEWLY ADDED EXPORTS TO SATISFY FRONTEND PAGE IMPORTS ---
 
 // Approve a user's transaction/subscription payment
 export async function approveTransactionAction(transactionId: string) {
