@@ -1,4 +1,4 @@
-// src/app/dashboard/admin/subscriptions/page.tsx
+// src/app/dashboard/admin/settings/subscriptions/page.tsx
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';

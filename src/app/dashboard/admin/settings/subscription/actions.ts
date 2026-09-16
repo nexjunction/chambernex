@@ -1,4 +1,4 @@
-// src/app/dashboard/admin/settings/subscription/actions.ts
+// src/app/dashboard/admin/settings/subscriptions/actions.ts
 'use server';
 
 import { prisma } from '@/lib/prisma';
@@ -230,33 +230,56 @@ export async function rejectTransactionAction(transactionId: string) {
   return { success: true };
 }
 
-// Wrapper/Alias matching updateUserCustomPriceAction requested by page.tsx
+// Wrapper/Alias supporting both object payload or arguments for custom price updating
 export async function updateUserCustomPriceAction(
-  userId: string,
-  subStatus: 'TRIAL' | 'ACTIVE' | 'EXPIRED',
-  planType: 'MONTHLY' | 'HALF_YEARLY' | 'ANNUAL' | 'LIFETIME' | 'CUSTOM',
-  isLifetimeFree: boolean,
-  trialDaysOverride: number | null,
-  customMonthlyPrice: number | null,
-  customHalfYearlyPrice: number | null,
-  customAnnualPrice: number | null,
-  customLifetimePrice: number | null,
-  userSpecificOfferTitle: string | null,
-  userSpecificDiscountPct: number | null,
+  payloadOrUserId: string | {
+    userId: string;
+    customMonthlyPrice: number | null;
+    customHalfYearlyPrice: number | null;
+    customAnnualPrice: number | null;
+    customLifetimePrice: number | null;
+  },
+  subStatus?: 'TRIAL' | 'ACTIVE' | 'EXPIRED',
+  planType?: 'MONTHLY' | 'HALF_YEARLY' | 'ANNUAL' | 'LIFETIME' | 'CUSTOM',
+  isLifetimeFree?: boolean,
+  trialDaysOverride?: number | null,
+  customMonthlyPrice?: number | null,
+  customHalfYearlyPrice?: number | null,
+  customAnnualPrice?: number | null,
+  customLifetimePrice?: number | null,
+  userSpecificOfferTitle?: string | null,
+  userSpecificDiscountPct?: number | null,
   monthsToAdd?: number
 ) {
-  return updateParticularUserAction(
-    userId,
-    subStatus,
-    planType,
-    isLifetimeFree,
-    trialDaysOverride,
-    customMonthlyPrice,
-    customHalfYearlyPrice,
-    customAnnualPrice,
-    customLifetimePrice,
-    userSpecificOfferTitle,
-    userSpecificDiscountPct,
-    monthsToAdd
-  );
+  if (typeof payloadOrUserId === 'object' && payloadOrUserId !== null) {
+    // Handled as object payload sent by your current page.tsx
+    const { userId, customMonthlyPrice, customHalfYearlyPrice, customAnnualPrice, customLifetimePrice } = payloadOrUserId;
+    await verifySuperAdmin();
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        customMonthlyPrice: customMonthlyPrice !== null && !isNaN(customMonthlyPrice as number) ? customMonthlyPrice : null,
+        customHalfYearlyPrice: customHalfYearlyPrice !== null && !isNaN(customHalfYearlyPrice as number) ? customHalfYearlyPrice : null,
+        customAnnualPrice: customAnnualPrice !== null && !isNaN(customAnnualPrice as number) ? customAnnualPrice : null,
+        customLifetimePrice: customLifetimePrice !== null && !isNaN(customLifetimePrice as number) ? customLifetimePrice : null,
+      },
+    });
+    return { success: true };
+  } else {
+    // Handled as full argument list
+    return updateParticularUserAction(
+      payloadOrUserId,
+      subStatus!,
+      planType!,
+      isLifetimeFree!,
+      trialDaysOverride!,
+      customMonthlyPrice!,
+      customHalfYearlyPrice!,
+      customAnnualPrice!,
+      customLifetimePrice!,
+      userSpecificOfferTitle!,
+      userSpecificDiscountPct!,
+      monthsToAdd
+    );
+  }
 }
