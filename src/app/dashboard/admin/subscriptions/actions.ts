@@ -135,7 +135,7 @@ export async function updatePlatformSettingsAction(
   return { success: true };
 }
 
-// Comprehensive Particular Doctor Management Action matching frontend payload
+// Comprehensive Particular Doctor Management Action
 export async function updateParticularUserAction(
   userId: string,
   subStatus: 'TRIAL' | 'ACTIVE' | 'EXPIRED',
@@ -185,4 +185,80 @@ export async function updateParticularUserAction(
   });
 
   return { success: true };
+}
+
+// --- NEWLY ADDED EXPORTS TO SATISFY FRONTEND PAGE IMPORTS ---
+
+// Approve a user's transaction/subscription payment
+export async function approveTransactionAction(transactionId: string) {
+  await verifySuperAdmin();
+
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+  });
+
+  if (!transaction) {
+    throw new Error('Transaction not found');
+  }
+
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: { status: 'SUCCESS' },
+  });
+
+  if (transaction.userId) {
+    const subEndsAt = new Date();
+    subEndsAt.setMonth(subEndsAt.getMonth() + 1);
+
+    await prisma.user.update({
+      where: { id: transaction.userId },
+      data: {
+        subStatus: 'ACTIVE',
+        subEndsAt,
+      },
+    });
+  }
+
+  return { success: true };
+}
+
+// Reject a user's transaction/subscription payment
+export async function rejectTransactionAction(transactionId: string) {
+  await verifySuperAdmin();
+
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: { status: 'FAILED' },
+  });
+
+  return { success: true };
+}
+
+// Wrapper/Alias matching updateUserCustomPriceAction requested by page.tsx
+export async function updateUserCustomPriceAction(
+  userId: string,
+  subStatus: 'TRIAL' | 'ACTIVE' | 'EXPIRED',
+  isLifetimeFree: boolean,
+  trialDaysOverride: number | null,
+  customMonthlyPrice: number | null,
+  customHalfYearlyPrice: number | null,
+  customAnnualPrice: number | null,
+  customLifetimePrice: number | null,
+  userSpecificOfferTitle: string | null,
+  userSpecificDiscountPct: number | null,
+  monthsToAdd?: number
+) {
+  return updateParticularUserAction(
+    userId,
+    subStatus,
+    isLifetimeFree,
+    trialDaysOverride,
+    customMonthlyPrice,
+    customHalfYearlyPrice,
+    customAnnualPrice,
+    customLifetimePrice,
+    userSpecificOfferTitle,
+    userSpecificDiscountPct,
+    monthsToAdd
+  );
 }
