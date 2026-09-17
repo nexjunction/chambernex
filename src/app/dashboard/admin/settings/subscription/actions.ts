@@ -197,9 +197,10 @@ export async function approveTransactionAction(transactionId: string) {
     throw new Error('Transaction not found');
   }
 
+  // Updated to 'APPROVED' to match the frontend badge check in page.tsx
   await prisma.transaction.update({
     where: { id: transactionId },
-    data: { status: 'SUCCESS' },
+    data: { status: 'APPROVED' },
   });
 
   if (transaction.userId) {

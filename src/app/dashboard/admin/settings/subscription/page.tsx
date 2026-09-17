@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition } from 'react';
 import {
   getSubscriptionDataAction,
   updatePlatformSettingsAction,
-  updateUserCustomPriceAction,
+  updateParticularUserAction,
   approveTransactionAction,
   rejectTransactionAction
 } from './actions';
@@ -27,12 +27,19 @@ export default function AdminSubscriptionsPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Per-User Custom Tier Price Modal/Inline State
+  // Per-User Management Modal/Inline State
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [subStatus, setSubStatus] = useState<'TRIAL' | 'ACTIVE' | 'EXPIRED'>('ACTIVE');
+  const [planType, setPlanType] = useState<'MONTHLY' | 'HALF_YEARLY' | 'ANNUAL' | 'LIFETIME' | 'CUSTOM'>('MONTHLY');
+  const [isLifetimeFree, setIsLifetimeFree] = useState(false);
+  const [trialDaysOverride, setTrialDaysOverride] = useState<string>('');
+  const [monthsToAdd, setMonthsToAdd] = useState<string>('');
   const [customMonthly, setCustomMonthly] = useState<string>('');
   const [customHalfYearly, setCustomHalfYearly] = useState<string>('');
   const [customAnnual, setCustomAnnual] = useState<string>('');
   const [customLifetime, setCustomLifetime] = useState<string>('');
+  const [userOfferTitle, setUserOfferTitle] = useState<string>('');
+  const [userDiscountPct, setUserDiscountPct] = useState<string>('');
 
   const loadData = async () => {
     setLoading(true);
@@ -77,17 +84,23 @@ export default function AdminSubscriptionsPage() {
     });
   };
 
-  const handleSaveCustomPrices = (userId: string) => {
+  const handleSaveParticularUser = (userId: string) => {
     startTransition(async () => {
-      const payload = {
+      const res = await updateParticularUserAction(
         userId,
-        customMonthlyPrice: customMonthly.trim() === '' ? null : Number(customMonthly),
-        customHalfYearlyPrice: customHalfYearly.trim() === '' ? null : Number(customHalfYearly),
-        customAnnualPrice: customAnnual.trim() === '' ? null : Number(customAnnual),
-        customLifetimePrice: customLifetime.trim() === '' ? null : Number(customLifetime),
-      };
+        subStatus,
+        planType,
+        isLifetimeFree,
+        trialDaysOverride.trim() === '' ? null : Number(trialDaysOverride),
+        customMonthly.trim() === '' ? null : Number(customMonthly),
+        customHalfYearly.trim() === '' ? null : Number(customHalfYearly),
+        customAnnual.trim() === '' ? null : Number(customAnnual),
+        customLifetime.trim() === '' ? null : Number(customLifetime),
+        userOfferTitle.trim() === '' ? null : userOfferTitle,
+        userDiscountPct.trim() === '' ? null : Number(userDiscountPct),
+        monthsToAdd.trim() === '' ? undefined : Number(monthsToAdd)
+      );
 
-      const res = await updateUserCustomPriceAction(payload);
       if (res.success) {
         setEditingUserId(null);
         await loadData();
@@ -177,9 +190,9 @@ export default function AdminSubscriptionsPage() {
                 <tr>
                   <th className="pb-3">User</th>
                   <th className="pb-3">Role</th>
-                  <th className="pb-3">Status</th>
+                  <th className="pb-3">Status / Plan</th>
                   <th className="pb-3">Access Ends / Trial Ends</th>
-                  <th className="pb-3">Custom Tier Pricing</th>
+                  <th className="pb-3">Custom Tiers & Pricing</th>
                   <th className="pb-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -196,13 +209,16 @@ export default function AdminSubscriptionsPage() {
                       </span>
                     </td>
                     <td className="py-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        u.subStatus === 'ACTIVE' ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40' :
-                        u.subStatus === 'TRIAL' ? 'bg-blue-900/60 text-blue-300 border border-blue-500/40' :
-                        'bg-red-900/60 text-red-300 border border-red-500/40'
-                      }`}>
-                        {u.subStatus}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`w-fit px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          u.subStatus === 'ACTIVE' ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40' :
+                          u.subStatus === 'TRIAL' ? 'bg-blue-900/60 text-blue-300 border border-blue-500/40' :
+                          'bg-red-900/60 text-red-300 border border-red-500/40'
+                        }`}>
+                          {u.subStatus}
+                        </span>
+                        <span className="text-[10px] text-blue-300 font-mono">Plan: {u.planType || 'DEFAULT'}</span>
+                      </div>
                     </td>
                     <td className="py-3 font-mono text-[11px]">
                       {u.subStatus === 'TRIAL'
@@ -211,8 +227,62 @@ export default function AdminSubscriptionsPage() {
                     </td>
                     <td className="py-3">
                       {editingUserId === u.id ? (
-                        <div className="space-y-2 bg-slate-900 p-3 rounded-xl border border-slate-700 w-72">
-                          <p className="text-[10px] font-semibold text-slate-400 uppercase">Set Custom Prices (leave empty for default)</p>
+                        <div className="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700 w-80">
+                          <p className="text-[11px] font-bold text-white uppercase border-b border-slate-800 pb-1">Manage User: {u.name}</p>
+
+                          <div className="grid grid-cols-2 gap-2 text-[11px]">
+                            <div>
+                              <label className="text-[10px] text-slate-400">Status</label>
+                              <select
+                                value={subStatus}
+                                onChange={(e: any) => setSubStatus(e.target.value)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-white text-xs"
+                              >
+                                <option value="ACTIVE">ACTIVE</option>
+                                <option value="TRIAL">TRIAL</option>
+                                <option value="EXPIRED">EXPIRED</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-slate-400">Plan Type</label>
+                              <select
+                                value={planType}
+                                onChange={(e: any) => setPlanType(e.target.value)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-white text-xs"
+                              >
+                                <option value="MONTHLY">MONTHLY</option>
+                                <option value="HALF_YEARLY">HALF_YEARLY</option>
+                                <option value="ANNUAL">ANNUAL</option>
+                                <option value="LIFETIME">LIFETIME</option>
+                                <option value="CUSTOM">CUSTOM</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-[11px]">
+                            <div>
+                              <label className="text-[10px] text-slate-400">Trial Override Days</label>
+                              <input
+                                type="number"
+                                placeholder="e.g. 14"
+                                value={trialDaysOverride}
+                                onChange={(e) => setTrialDaysOverride(e.target.value)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-white text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-slate-400">Add Months Access</label>
+                              <input
+                                type="number"
+                                placeholder="e.g. 1"
+                                value={monthsToAdd}
+                                onChange={(e) => setMonthsToAdd(e.target.value)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-white text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase pt-1">Custom Tier Prices</p>
                           <div className="grid grid-cols-2 gap-2 text-[11px]">
                             <div>
                               <label className="text-[10px] text-slate-400">Monthly</label>
@@ -255,13 +325,14 @@ export default function AdminSubscriptionsPage() {
                               />
                             </div>
                           </div>
-                          <div className="flex items-center justify-end gap-2 pt-1">
+
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                             <button
-                              onClick={() => handleSaveCustomPrices(u.id)}
+                              onClick={() => handleSaveParticularUser(u.id)}
                               disabled={isPending}
                               className="bg-emerald-600 hover:bg-emerald-500 px-3 py-1 rounded text-white font-bold cursor-pointer text-[10px]"
                             >
-                              Save Tiers
+                              Save All Changes
                             </button>
                             <button
                               onClick={() => setEditingUserId(null)}
@@ -282,14 +353,20 @@ export default function AdminSubscriptionsPage() {
                           <button
                             onClick={() => {
                               setEditingUserId(u.id);
+                              setSubStatus(u.subStatus || 'ACTIVE');
+                              setPlanType(u.planType || 'MONTHLY');
+                              setTrialDaysOverride('');
+                              setMonthsToAdd('');
                               setCustomMonthly(u.customMonthlyPrice ? u.customMonthlyPrice.toString() : '');
                               setCustomHalfYearly(u.customHalfYearlyPrice ? u.customHalfYearlyPrice.toString() : '');
                               setCustomAnnual(u.customAnnualPrice ? u.customAnnualPrice.toString() : '');
                               setCustomLifetime(u.customLifetimePrice ? u.customLifetimePrice.toString() : '');
+                              setUserOfferTitle(u.userSpecificOfferTitle || '');
+                              setUserDiscountPct(u.userSpecificDiscountPct !== null ? u.userSpecificDiscountPct.toString() : '');
                             }}
-                            className="text-blue-400 hover:underline text-[10px] cursor-pointer mt-1 block"
+                            className="text-blue-400 hover:underline text-[10px] cursor-pointer mt-1 block font-semibold"
                           >
-                            Edit Custom Prices
+                            ⚙️ Edit User & Prices
                           </button>
                         </div>
                       )}
