@@ -1,4 +1,5 @@
 // src/app/dashboard/doctor/patients/page.tsx
+export const dynamic = 'force-dynamic';
 import { getAllPatientsHistoryAction } from '../actions';
 import PatientsDirectoryClient from '../PatientsDirectoryClient';
 
