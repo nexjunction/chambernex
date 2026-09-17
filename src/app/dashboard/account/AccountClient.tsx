@@ -8,6 +8,7 @@ import {
   updateAccountAction,
   verifyEmailUpdateAction,
   verifyPhoneUpdateAction,
+  changePasswordAction,
   sendConnectionRequest,
   updateConnectionStatus,
   sendAdminConnectionRequest,
@@ -75,6 +76,13 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ success: boolean; text: string } | null>(null);
 
+  // Password Form States
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ success: boolean; text: string } | null>(null);
+
   // Global Theme State
   const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -110,7 +118,7 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
     return () => window.removeEventListener('theme-change', handleThemeChange);
   }, []);
 
-  // Keep avatar synced if user prop updates (Removed setEmail to prevent it from erasing your typing!)
+  // Keep avatar synced if user prop updates
   useEffect(() => {
     setAvatarUrl(user.avatarUrl || '');
   }, [user.avatarUrl]);
@@ -142,13 +150,9 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
     setLoading(true);
     setMessage(null);
 
-    // 1. Grab FormData EXACTLY as it appears in the HTML DOM, bypassing React state bugs!
     const formData = new FormData(e.currentTarget);
-
-    // 2. Explicitly append the userId since it's not a visible input field
     formData.set('userId', user.id);
 
-    // 3. Read the exact text you typed directly from the DOM payload for our OTP checks
     const newEmailInput = (formData.get('email') as string)?.trim() || '';
     const newPhoneInput = (formData.get('phone') as string)?.trim() || '';
 
@@ -160,7 +164,6 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
 
       if (res.requiresOtp) {
         setRequiresOtp(true);
-        // Compare what you actually typed against the database prop
         if (newEmailInput && newEmailInput !== user.email) {
           setOtpType('EMAIL');
         } else if (newPhoneInput && newPhoneInput !== user.phone) {
@@ -171,6 +174,30 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
       }
     } else {
       setMessage({ success: false, text: res.error || 'Failed to update profile.' });
+    }
+  }
+
+  async function handlePasswordSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPasswordLoading(true);
+    setPasswordMessage(null);
+
+    const formData = new FormData();
+    formData.set('userId', user.id);
+    formData.set('currentPassword', currentPassword);
+    formData.set('newPassword', newPassword);
+    formData.set('confirmPassword', confirmPassword);
+
+    const res = await changePasswordAction(formData);
+
+    setPasswordLoading(false);
+    if (res.success) {
+      setPasswordMessage({ success: true, text: res.message || 'Password updated successfully!' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } else {
+      setPasswordMessage({ success: false, text: res.error || 'Failed to update password.' });
     }
   }
 
@@ -194,7 +221,6 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
     }
   }
 
-  // Handle local preview immediately when an image file is chosen
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
@@ -234,7 +260,6 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
     }
   }
 
-  // Admin Connection Handlers
   async function handleSendAdminRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!adminTargetEmail.trim()) return;
@@ -275,7 +300,7 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
       }`}>
         <div>
           <h1 className="text-xl font-bold tracking-wide">Account & Staff Network</h1>
-          <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Manage your profile, credentials, and professional working connections</p>
+          <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Manage your profile, credentials, security, and professional working connections</p>
         </div>
         <Link
           href={dashboardRoute}
@@ -500,6 +525,82 @@ export default function AccountClient({ user, initialConnections, initialAdminCo
               </form>
             )}
           </div>
+        </div>
+
+        {/* Password Update Section */}
+        <div className={`border rounded-2xl p-6 shadow-lg transition-colors ${
+          isDarkMode ? 'bg-[#1c2541] border-slate-800' : 'bg-white border-slate-200'
+        }`}>
+          <h2 className={`text-sm font-semibold uppercase tracking-wider mb-2 ${
+            isDarkMode ? 'text-slate-400' : 'text-slate-700'
+          }`}>Change Password</h2>
+
+          {passwordMessage && (
+            <div
+              className={`text-xs p-3 rounded-xl border mb-4 ${
+                passwordMessage.success
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                  : 'bg-red-500/20 border-red-500/50 text-red-300'
+              }`}
+            >
+              {passwordMessage.success ? '✅ ' : '⚠️ '} {passwordMessage.text}
+            </div>
+          )}
+
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div>
+              <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Current Password *</label>
+              <input
+                type="password"
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="••••••••"
+                className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${
+                  isDarkMode ? 'bg-[#131b2e] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                }`}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>New Password *</label>
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${
+                    isDarkMode ? 'bg-[#131b2e] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Confirm New Password *</label>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter new password"
+                  className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 ${
+                    isDarkMode ? 'bg-[#131b2e] border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className={`pt-4 border-t flex justify-end ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition shadow-lg disabled:opacity-50"
+              >
+                {passwordLoading ? 'Updating...' : 'Update Password'}
+              </button>
+            </div>
+          </form>
         </div>
 
         {/* Bottom Section 1: Staff Network & Connection Manager (Doctor <-> Receptionist) */}

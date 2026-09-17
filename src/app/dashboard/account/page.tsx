@@ -1,4 +1,6 @@
 // src/app/dashboard/account/page.tsx
+export const dynamic = 'force-dynamic';
+
 import { prisma } from '@/lib/prisma';
 import AccountClient from './AccountClient';
 import { cookies } from 'next/headers';

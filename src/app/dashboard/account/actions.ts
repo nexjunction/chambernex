@@ -1,4 +1,3 @@
-// src/app/dashboard/account/actions.ts
 'use server';
 
 import { prisma } from '@/lib/prisma';
@@ -6,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { sendEmailOtp, sendSmsOtp } from '@/lib/otpService';
+import bcrypt from 'bcrypt';
 
 export async function updateAccountAction(formData: FormData) {
   console.log('--- Incoming Form Data Entries ---');
@@ -223,6 +223,64 @@ export async function verifyPhoneUpdateAction(userId: string, otpInput: string) 
   } catch (error) {
     console.error('Verify phone update error:', error);
     return { success: false, error: 'Failed to verify phone update.' };
+  }
+}
+
+// ==========================================
+// Password Management Actions
+// ==========================================
+
+export async function changePasswordAction(formData: FormData) {
+  const userId = (formData.get('userId') as string)?.trim();
+  const currentPassword = (formData.get('currentPassword') as string)?.trim();
+  const newPassword = (formData.get('newPassword') as string)?.trim();
+  const confirmPassword = (formData.get('confirmPassword') as string)?.trim();
+
+  if (!userId) {
+    return { success: false, error: 'User session identifier is missing.' };
+  }
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return { success: false, error: 'All password fields are required.' };
+  }
+
+  if (newPassword !== confirmPassword) {
+    return { success: false, error: 'New passwords do not match.' };
+  }
+
+  if (newPassword.length < 6) {
+    return { success: false, error: 'New password must be at least 6 characters long.' };
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || !user.password) {
+      return { success: false, error: 'User not found or password authentication not configured for this account.' };
+    }
+
+    // Verify current password via bcrypt
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+      return { success: false, error: 'Incorrect current password.' };
+    }
+
+    // Hash the new password securely
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password in database
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    revalidatePath('/dashboard/account');
+    return { success: true, message: 'Password updated successfully!' };
+  } catch (error) {
+    console.error('Failed to update password:', error);
+    return { success: false, error: 'An error occurred while updating your password.' };
   }
 }
 
